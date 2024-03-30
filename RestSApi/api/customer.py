@@ -1,4 +1,4 @@
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view,action
 from rest_framework.response import Response
 from rest_framework import status
 from RestSApi.models import Customer
@@ -7,6 +7,9 @@ from rest_framework.views import APIView
 from rest_framework import viewsets
 from django.contrib.auth import authenticate
 from rest_framework.authtoken.models import Token
+from rest_framework.permissions import IsAuthenticated
+from django.core.paginator import Paginator
+from rest_framework.authentication import TokenAuthentication
 
 @api_view(["GET","POST","PUT","DELETE","PATCH"])
 def get_info(request):
@@ -41,11 +44,16 @@ def get_info(request):
             return Response({'status': "failed","message":"No such customer exists"},status = status.HTTP_404_NOT_FOUND)
 
 class CustomerCrud(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [TokenAuthentication]
     def get(self,request):
-        query = Customer.objects.get(id=request.GET.get('id'))
-        serialize = CustomerModelSerializer(query)
-        return Response({"status":"success","data":serialize.data},status = status.HTTP_200_OK)
-    
+        query = Customer.objects.filter(id=request.GET.get('id'))
+        if query.exists():
+            serialize = CustomerModelSerializer(query,many = True)
+            return Response({"status":"success","data":serialize.data,"user":str(request.user)},status = status.HTTP_200_OK)
+        else:
+            return Response({"status":"failed","message":"No such customer exists"},status = status.HTTP_404_NOT_FOUND) 
+
     def post(self,request):
         serializer = CustomerModelSerializer(data = request.data)
         if serializer.is_valid():
@@ -89,6 +97,7 @@ class CustomerCrud(APIView):
 class CustomerViewset(viewsets.ModelViewSet):
     serializer_class = CustomerModelSerializer
     queryset = Customer.objects.all()
+    http_method_names = ["GET"]
 
     def list(self, request):
         if request.GET.get('id'):
@@ -100,9 +109,13 @@ class CustomerViewset(viewsets.ModelViewSet):
         else:
             cust_queryset = Customer.objects.all()
             serializer = CustomerModelSerializer(cust_queryset, many = True).data
-            # serializer = []
         return Response({'status': "success","data":serializer},status=status.HTTP_200_OK)
     
+    @action(detail = True,methods=["POST"])
+    def search_customer(self, request, pk):
+        return Response({'status': "success"})
+
+
 @api_view(["POST"])
 def register_user(request):
     from RestSApi.api.serializers import UserSerializer
