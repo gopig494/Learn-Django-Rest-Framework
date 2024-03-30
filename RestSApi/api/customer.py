@@ -10,6 +10,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework.permissions import IsAuthenticated
 from django.core.paginator import Paginator
 from rest_framework.authentication import TokenAuthentication
+import django
 
 @api_view(["GET","POST","PUT","DELETE","PATCH"])
 def get_info(request):
@@ -97,7 +98,7 @@ class CustomerCrud(APIView):
 class CustomerViewset(viewsets.ModelViewSet):
     serializer_class = CustomerModelSerializer
     queryset = Customer.objects.all()
-    http_method_names = ["GET"]
+    # http_method_names = ["GET", "POST", "PUT", "PATCH"]
 
     def list(self, request):
         if request.GET.get('id'):
@@ -108,8 +109,15 @@ class CustomerViewset(viewsets.ModelViewSet):
             serializer = CustomerModelSerializer(cust_queryset, many = True).data
         else:
             cust_queryset = Customer.objects.all()
-            serializer = CustomerModelSerializer(cust_queryset, many = True).data
-        return Response({'status': "success","data":serializer},status=status.HTTP_200_OK)
+            serializerdd = CustomerModelSerializer(cust_queryset, many = True).data
+            pagestarts = request.GET.get("page_no",1)
+            page_size = 2
+            paginator = Paginator(cust_queryset, page_size)
+            try:
+                serializer = CustomerModelSerializer(paginator.page(pagestarts), many = True).data
+            except django.core.paginator.EmptyPage:
+                return Response({'status': "failed","message":"Data not found","all":serializerdd},status=status.HTTP_404_NOT_FOUND)
+        return Response({'status': "success","data":serializer,"all":serializerdd},status=status.HTTP_200_OK)
     
     @action(detail = True,methods=["POST"])
     def search_customer(self, request, pk):
